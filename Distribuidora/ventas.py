@@ -209,14 +209,15 @@ ver_ventas()	                                Muestra todas las ventas anteriores
 
 # -----------------------------------------------
 
-"""📌 Requisitos previos para que funcione
+"""📌 Requisitos para que funcione
 Tener los productos cargados en productos.
 
 Tener clientes cargados (o usar cliente_id = 0 para venta directa).
 
 Tener creada la base de datos (database.py).
 
-Tener tabla inventario_movimientos creada (ya lo hicimos antes)."""
+Tener tabla inventario_movimientos creada (ya lo hicimos antes).
+"""
 
 #️ Sugerencias de futuras mejoras, Requisitos previos para que funcione, Tabla de Funcionalidades
 
