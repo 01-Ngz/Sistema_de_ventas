@@ -3,11 +3,28 @@
 
 # finanzas.py
 import sqlite3
-#from datetime import datetime
+import os
 
 # Conexión con la base de datos
 def conectar():
-    return sqlite3.connect('db/gaseosas_distribucion.db')
+    # Asegura que la carpeta 'db/' exista
+    os.makedirs("db", exist_ok=True)
+
+    db_path = "db/gaseosas_distribucion.db"
+
+    # Si el archivo existe y está dañado, lo borramos
+    if os.path.exists(db_path):
+        try:
+            # Intentamos abrir y consultar algo mínimo
+            conn = sqlite3.connect(db_path)
+            conn.execute("SELECT name FROM sqlite_master LIMIT 1")
+            conn.close()
+        except sqlite3.DatabaseError:
+            print("⚠️ Archivo de base de datos dañado. Se eliminará y recreará.")
+            os.remove(db_path)
+
+    # Conectamos (creará la DB si no existe)
+    return sqlite3.connect(db_path)
 
 # Crear tablas de finanzas si no existen
 def crear_tablas_finanzas():
@@ -16,7 +33,7 @@ def crear_tablas_finanzas():
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS ingresos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            registro_id INTEGER PRIMARY KEY AUTOINCREMENT,
             monto REAL,
             descripcion TEXT,
             fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -26,7 +43,7 @@ def crear_tablas_finanzas():
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS gastos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            registro_id INTEGER PRIMARY KEY AUTOINCREMENT,
             monto REAL,
             descripcion TEXT,
             fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -111,14 +128,13 @@ def ver_historial(tabla):
     conn.close()
 
 
-
 # Ver todos los gastos registrados
 def ver_gastos():
     conn = conectar()
     cursor = conn.cursor()
 
     cursor.execute('''
-        SELECT id, monto, descripcion, fecha, origen
+        SELECT registro_id, monto, descripcion, fecha, origen
         FROM finanzas
         WHERE tipo = 'gasto'
         ORDER BY fecha DESC
@@ -161,7 +177,7 @@ def reporte_gastos_por_fecha(fecha_inicio, fecha_fin):
     cursor = conn.cursor()
 
     cursor.execute('''
-        SELECT id, monto, descripcion, fecha, origen
+        SELECT registro_id, monto, descripcion, fecha, origen
         FROM finanzas
         WHERE tipo = 'gasto' AND date(fecha) BETWEEN ? AND ?
         ORDER BY fecha DESC
@@ -172,17 +188,7 @@ def reporte_gastos_por_fecha(fecha_inicio, fecha_fin):
 
     print(f"\n== Gastos desde {fecha_inicio} hasta {fecha_fin} ==")
     for gasto in gastos:
-        print(f"ID: {gasto[0]} | Monto: ${gasto[1]:.2f} | Descripción: {gasto[2]} | Fecha: {gasto[3]} | Origen: {gasto[4]}")
-
-
-
-
-
-
-
-
-
-
+        print(f"ID: {gasto[0]} | Monto: ${gasto[1]:.2f} | Descripción: {gasto[2]} | Fecha: {gasto[3]} | Origen: {gasto[4]}"
 
 """
 -- Gestión de ingresos, gastos y reportes financieros
@@ -216,14 +222,14 @@ Sugerencias de futuras mejoras:
 ---
 
 | Función                    | ¿Qué hace?                                                                |
-|---------------------------|---------------------------------------------------------------------------|
-| creasto()          | Inserta un nuevo gasto en la base de datos                                |
-| ver_resumenar_tablas_finanzas()    | Crea las tablas 'ingresos' y 'gastos' si no existen                       |
-| registrar_ingreso()        | Inserta un nuevo ingreso en la base de datos                              |
-| registrar_g_financiero()   | Muestra totales de ingresos, gastos y balance neto                        |
-| ver_historial(tabla)       | Lista todos los registros de la tabla especificada ('ingresos' o 'gastos')|
-| ver_gastos()               | (Función parcialmente repetida) Muestra todos los gastos                  |
-| reporte_resumen_financiero() | (Función parcialmente repetida) Muestra resumen consolidado             |
-| reporte_gastos_por_fecha() | Muestra gastos dentro de un rango de fechas                               |
+|---------------------------|--------------------------------------------------------------------------- |
+| creasto()                          | Inserta un nuevo gasto en la base de datos                                |
+| ver_resumen_tablas_finanzas()    | Crea las tablas 'ingresos' y 'gastos' si no existen                       |
+| registrar_ingreso()                | Inserta un nuevo ingreso en la base de datos                              |
+| registrar_g_financiero()           | Muestra totales de ingresos, gastos y balance neto                        |
+| ver_historial(tabla)               | Lista todos los registros de la tabla especificada ('ingresos' o 'gastos')|
+| ver_gastos()                       |(Función parcialmente repetida) Muestra todos los gastos                   |
+| reporte_resumen_financiero()       | (Función parcialmente repetida) Muestra resumen consolidado               |
+| reporte_gastos_por_fecha()         | Muestra gastos dentro de un rango de fechas                               |
 
-"""
+""")

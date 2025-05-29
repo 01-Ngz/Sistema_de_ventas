@@ -1,12 +1,25 @@
 # Conexión y creación de tablas
 #funcionalidades: crea y conecta la base de datos.
-
-# database.py
 import sqlite3
+import os
 
-# Esta función conecta con la base de datos y crea todas las tablas necesarias
+# Asegura que la carpeta 'db/' exista y crea la base de datos y tablas
 def crear_base_datos():
-    conn = sqlite3.connect('db/gaseosas_distribucion.db')  # Crea la base de datos si no existe
+    os.makedirs("db", exist_ok=True)  # Crear carpeta 'db' si no existe
+
+    db_path = "db/gaseosas_distribucion.db"
+
+    # Si el archivo existe y está corrupto, eliminar para crear nuevo
+    if os.path.exists(db_path):
+        try:
+            conn_test = sqlite3.connect(db_path)
+            conn_test.execute("SELECT name FROM sqlite_master LIMIT 1")
+            conn_test.close()
+        except sqlite3.DatabaseError:
+            print("⚠️ Base de datos dañada. Se eliminará para crear una nueva.")
+            os.remove(db_path)
+
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     # Crear tabla de usuarios
@@ -77,7 +90,4 @@ def crear_base_datos():
 
     conn.commit()
     conn.close()
-    print("Base de datos creada correctamente.")
-
-
-# realizar menu
+    print("✅ Base de datos creada correctamente.")

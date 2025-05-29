@@ -1,199 +1,244 @@
-# Registro de ventas y facturación
-#Funcionalidades: Registrar venta, generar factura interna, ver ventas
-
-# ventas.py
+import os
 import sqlite3
 from datetime import datetime
 from finanzas import registrar_ingreso
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
 def conectar():
     return sqlite3.connect('db/gaseosas_distribucion.db')
 
-# Registrar una nueva venta
+# ------------------- REGISTRAR VENTA -------------------
 def registrar_venta():
-    conn = conectar()
-    cursor = conn.cursor()
+    try:
+        with conectar() as conn:
+            cursor = conn.cursor()
 
-    cliente_id = int(input("ID del cliente que realiza la compra: "))
-    cursor.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,))
-    cliente = cursor.fetchone()
-    if not cliente:
-        print("❌ Cliente no encontrado.")
-        conn.close()
-        return
+            cliente_id = int(input("ID del cliente que realiza la compra: "))
+            cursor.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,))
+            cliente = cursor.fetchone()
+            if not cliente:
+                print("❌ Cliente no encontrado.")
+                return
 
-    carrito = []
-    while True:
-        producto_id = int(input("ID del producto a vender: "))
-        cantidad = int(input("Cantidad: "))
+            carrito = []
+            while True:
+                try:
+                    producto_id = int(input("ID del producto a vender: "))
+                    cantidad = int(input("Cantidad: "))
+                except ValueError:
+                    print("❌ Entrada inválida. Usa solo números.")
+                    continue
 
-        cursor.execute("SELECT nombre, precio_venta, stock_actual FROM productos WHERE id = ?", (producto_id,))
-        producto = cursor.fetchone()
-        if not producto:
-            print("❌ Producto no encontrado.")
-            continue
-        if cantidad > producto[2]:
-            print("❌ No hay suficiente stock.")
-            continue
+                cursor.execute("SELECT nombre, precio_venta, stock_actual FROM productos WHERE id = ?", (producto_id,))
+                producto = cursor.fetchone()
+                if not producto:
+                    print("❌ Producto no encontrado.")
+                    continue
+                if cantidad > producto[2]:
+                    print("❌ No hay suficiente stock.")
+                    continue
 
-        subtotal = cantidad * producto[1]
-        carrito.append((producto_id, cantidad, producto[1], subtotal))
+                subtotal = cantidad * producto[1]
+                carrito.append((producto_id, cantidad, producto[1], subtotal))
 
-        seguir = input("¿Agregar otro producto? (s/n): ").lower()
-        if seguir != 's':
-            break
+                seguir = input("¿Agregar otro producto? (s/n): ").lower()
+                if seguir != 's':
+                    break
 
-    total = sum(item[3] for item in carrito)
-    fecha = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            if not carrito:
+                print("❌ No se agregó ningún producto.")
+                return
 
-    cursor.execute('''
-        INSERT INTO ventas (cliente_id, fecha, total)
-        VALUES (?, ?, ?)
-    ''', (cliente_id, fecha, total))
-    venta_id = cursor.lastrowid
+            total = sum(item[3] for item in carrito)
+            fecha = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    for producto_id, cantidad, precio_unitario, subtotal in carrito:
-        cursor.execute('''
-            INSERT INTO detalle_ventas (venta_id, producto_id, cantidad, precio_unitario, subtotal)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (venta_id, producto_id, cantidad, precio_unitario, subtotal))
+            cursor.execute('''
+                INSERT INTO ventas (cliente_id, fecha, total)
+                VALUES (?, ?, ?)
+            ''', (cliente_id, fecha, total))
+            venta_id = cursor.lastrowid
 
-        # Actualizar stock
-        cursor.execute('''
-            UPDATE productos
-            SET stock_actual = stock_actual - ?
-            WHERE id = ?
-        ''', (cantidad, producto_id))
+            for producto_id, cantidad, precio_unitario, subtotal in carrito:
+                cursor.execute('''
+                    INSERT INTO detalle_ventas (venta_id, producto_id, cantidad, precio_unitario, subtotal)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (venta_id, producto_id, cantidad, precio_unitario, subtotal))
+                cursor.execute('''
+                    UPDATE productos
+                    SET stock_actual = stock_actual - ?
+                    WHERE id = ?
+                ''', (cantidad, producto_id))
 
-    conn.commit()
-    conn.close()
-    print(f"✅ Venta registrada con ID {venta_id} y total ${total:.2f}")
+            registrar_ingreso(total, f"Venta ID #{venta_id}", origen="venta")
+            print(f"✅ Venta registrada con ID {venta_id} y total ${total:.2f}")
 
+    except Exception as e:
+        print(f"❌ Error al registrar venta: {e}")
 
-def calcular_total(productos_vendidos):
-    total = 0
-    for producto in productos_vendidos:
-        cantidad = producto["cantidad"]
-        precio_unitario = producto["precio_unitario"]
-        total += cantidad * precio_unitario
-    return total
+# ------------------- CANCELAR VENTA -------------------
+def eliminar_venta(venta_id):
+    try:
+        with conectar() as conn:
+            cursor = conn.cursor()
 
-# Guarda la venta principal y los productos vendidos en la base de datos
-def guardar_venta_en_bd(cliente_id, productos_vendidos):
-    conn = conectar()
-    cursor = conn.cursor()
+            cursor.execute("SELECT * FROM ventas WHERE id = ?", (venta_id,))
+            venta = cursor.fetchone()
+            if not venta:
+                print("❌ Venta no encontrada.")
+                return
 
-    total = calcular_total(productos_vendidos)
+            cursor.execute("SELECT producto_id, cantidad FROM detalle_ventas WHERE venta_id = ?", (venta_id,))
+            productos = cursor.fetchall()
 
-    # Guardar venta principal
-    cursor.execute('''
-        INSERT INTO ventas (cliente_id, total)
-        VALUES (?, ?)
-    ''', (cliente_id, total))
+            for producto_id, cantidad in productos:
+                cursor.execute("UPDATE productos SET stock_actual = stock_actual + ? WHERE id = ?", (cantidad, producto_id))
 
-    venta_id = cursor.lastrowid  # obtener el ID de la venta recién creada
+            cursor.execute("DELETE FROM detalle_ventas WHERE venta_id = ?", (venta_id,))
+            cursor.execute("DELETE FROM ventas WHERE id = ?", (venta_id,))
 
-    # Guardar detalles de productos
-    for producto in productos_vendidos:
-        producto_id = producto["producto_id"]
-        cantidad = producto["cantidad"]
-        precio_unitario = producto["precio_unitario"]
-        subtotal = cantidad * precio_unitario
+            print(f"✅ Venta {venta_id} cancelada y stock restaurado.")
+    except Exception as e:
+        print(f"❌ Error al cancelar venta: {e}")
 
-        cursor.execute('''
-            INSERT INTO detalles_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (venta_id, producto_id, cantidad, precio_unitario, subtotal))
+# ------------------- EDITAR VENTA -------------------
+def editar_venta(venta_id):
+    try:
+        cancelar_venta(venta_id)  # Borra la venta actual
+        print("Ingrese los nuevos datos para la venta:")
+        registrar_venta()         # Registra una nueva venta
+    except Exception as e:
+        print(f"❌ Error al editar venta: {e}")
 
-    conn.commit()
-    conn.close()
+# ------------------- TOP PRODUCTOS VENDIDOS -------------------
+def top_productos(limit=5):
+    try:
+        with conectar() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT p.nombre, SUM(d.cantidad) as total_vendidos
+                FROM detalle_ventas d
+                JOIN productos p ON d.producto_id = p.id
+                GROUP BY d.producto_id
+                ORDER BY total_vendidos DESC
+                LIMIT ?
+            ''', (limit,))
+            resultados = cursor.fetchall()
 
-    # Registrar automáticamente el ingreso en finanzas
-    descripcion = f"Venta ID #{venta_id}"
-    registrar_ingreso(total, descripcion, origen="venta")
+            print("\n== TOP PRODUCTOS VENDIDOS ==")
+            for i, (nombre, total) in enumerate(resultados, 1):
+                print(f"{i}. {nombre} - {total} unidades")
+    except Exception as e:
+        print(f"❌ Error al obtener top productos: {e}")
 
-    return venta_id
+# ------------------- VENTAS POR FECHA -------------------
+def ventas_por_fecha(fecha_inicio, fecha_fin):
+    try:
+        with conectar() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT v.id, c.nombre, v.fecha, v.total
+                FROM ventas v
+                JOIN clientes c ON v.cliente_id = c.id
+                WHERE v.fecha BETWEEN ? AND ?
+                ORDER BY v.fecha ASC
+            ''', (fecha_inicio, fecha_fin))
+            ventas = cursor.fetchall()
 
-# Generar factura interna de una venta
-def generar_factura(venta_id):
-    conn = conectar()
-    cursor = conn.cursor()
+            print("\n== VENTAS POR FECHA ==")
+            for v in ventas:
+                print(f"ID: {v[0]} | Cliente: {v[1]} | Fecha: {v[2]} | Total: ${v[3]:.2f}")
+    except Exception as e:
+        print(f"❌ Error al consultar ventas por fecha: {e}")
 
-    cursor.execute('''
-        SELECT ventas.id, clientes.nombre, ventas.fecha, ventas.total
-        FROM ventas
-        JOIN clientes ON ventas.cliente_id = clientes.id
-        WHERE ventas.id = ?
-    ''', (venta_id,))
-    venta = cursor.fetchone()
+# ------------------- VENTAS POR CLIENTE -------------------
+def ventas_por_cliente(cliente_id):
+    try:
+        with conectar() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, fecha, total FROM ventas
+                WHERE cliente_id = ?
+                ORDER BY fecha DESC
+            ''', (cliente_id,))
+            ventas = cursor.fetchall()
 
-    if not venta:
-        print("❌ Venta no encontrada.")
-        conn.close()
-        return
+            print(f"\n== VENTAS DEL CLIENTE {cliente_id} ==")
+            for v in ventas:
+                print(f"ID: {v[0]} | Fecha: {v[1]} | Total: ${v[2]:.2f}")
+    except Exception as e:
+        print(f"❌ Error al consultar ventas del cliente: {e}")
 
-    print("\n📄 FACTURA INTERNA")
-    print(f"ID Venta: {venta[0]}")
-    print(f"Cliente: {venta[1]}")
-    print(f"Fecha: {venta[2]}")
-    print("===================================")
+# ------------------- EXPORTAR FACTURA A PDF -------------------
 
-    cursor.execute('''
-        SELECT p.nombre, d.cantidad, d.precio_unitario, d.subtotal
-        FROM detalle_ventas d
-        JOIN productos p ON d.producto_id = p.id
-        WHERE d.venta_id = ?
-    ''', (venta_id,))
-    detalles = cursor.fetchall()
+"""exportar_factura_pdf(venta_id)
+Donde venta_id es el ID de la venta que quieres exportar a PDF."""
+def exportar_factura_pdf(venta_id):
+    os.makedirs('facturas', exist_ok=True)
+    nombre_pdf = f"facturas/factura_venta_{venta_id}.pdf"
 
-    for item in detalles:
-        print(f"{item[0]} - Cant: {item[1]} x ${item[2]} = ${item[3]:.2f}")
+    try:
+        with conectar() as conn:
+            cursor = conn.cursor()
 
-    print("===================================")
-    print(f"TOTAL: ${venta[3]:.2f}")
-    conn.close()
+            cursor.execute('''
+                SELECT v.id, v.fecha, v.total, c.nombre, c.direccion, c.telefono
+                FROM ventas v
+                JOIN clientes c ON v.cliente_id = c.id
+                WHERE v.id = ?
+            ''', (venta_id,))
+            venta = cursor.fetchone()
+            if not venta:
+                print("❌ Venta no encontrada.")
+                return
 
-# Listar todas las ventas
-def listar_ventas():
-    conn = conectar()
-    cursor = conn.cursor()
+            cursor.execute('''
+                SELECT p.nombre, d.cantidad, d.precio_unitario, d.subtotal
+                FROM detalle_ventas d
+                JOIN productos p ON d.producto_id = p.id
+                WHERE d.venta_id = ?
+            ''', (venta_id,))
+            productos = cursor.fetchall()
 
-    cursor.execute('''
-        SELECT v.id, c.nombre, v.fecha, v.total
-        FROM ventas v
-        JOIN clientes c ON v.cliente_id = c.id
-        ORDER BY v.fecha DESC
-    ''')
-    ventas = cursor.fetchall()
+        c = canvas.Canvas(nombre_pdf, pagesize=letter)
+        width, height = letter
 
-    print("\n== HISTORIAL DE VENTAS ==")
-    for v in ventas:
-        print(f"ID: {v[0]} | Cliente: {v[1]} | Fecha: {v[2]} | Total: ${v[3]:.2f}")
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(50, height - 50, "Factura de Venta")
+        c.setFont("Helvetica", 12)
+        c.drawString(50, height - 80, f"ID Venta: {venta[0]}")
+        c.drawString(50, height - 100, f"Fecha: {venta[1]}")
+        c.drawString(50, height - 120, f"Cliente: {venta[3]}")
+        c.drawString(50, height - 140, f"Dirección: {venta[4] if venta[4] else 'N/A'}")
+        c.drawString(50, height - 160, f"Teléfono: {venta[5] if venta[5] else 'N/A'}")
 
-    conn.close()
+        c.drawString(50, height - 190, "Productos:")
+        y = height - 210
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(50, y, "Nombre")
+        c.drawString(250, y, "Cantidad")
+        c.drawString(320, y, "Precio Unitario")
+        c.drawString(430, y, "Subtotal")
+        y -= 15
+        c.setFont("Helvetica", 10)
 
-# Ver detalle de una venta
-def detalle_venta(venta_id):
-    conn = conectar()
-    cursor = conn.cursor()
+        for nombre, cantidad, precio_unitario, subtotal in productos:
+            c.drawString(50, y, str(nombre))
+            c.drawString(250, y, str(cantidad))
+            c.drawString(320, y, f"${precio_unitario:.2f}")
+            c.drawString(430, y, f"${subtotal:.2f}")
+            y -= 15
+            if y < 50:
+                c.showPage()
+                y = height - 50
 
-    cursor.execute('''
-        SELECT p.nombre, d.cantidad, d.precio_unitario, d.subtotal
-        FROM detalle_ventas d
-        JOIN productos p ON d.producto_id = p.id
-        WHERE d.venta_id = ?
-    ''', (venta_id,))
-    detalles = cursor.fetchall()
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(50, y - 10, f"Total a pagar: ${venta[2]:.2f}")
 
-    if detalles:
-        print("\n== Detalle de venta ==")
-        for d in detalles:
-            print(f"{d[0]} - {d[1]} unidades x ${d[2]} = ${d[3]}")
-    else:
-        print("❌ No hay detalles para esta venta.")
-
-    conn.close()
-
+        c.save()
+        print(f"✅ Factura PDF generada: {nombre_pdf}")
+    except Exception as e:
+        print(f"❌ Error al generar factura PDF: {e}")
 
 # ----------------------------------------------------------------------------------------------
 
