@@ -127,6 +127,10 @@ Función	               | ¿Qué hace?
 agregar_cliente()	       |Registra un nuevo cliente con nombre, dirección, teléfono y correo electrónico.
 listar_clientes()	       |Muestra todos los clientes registrados.
 buscar_cliente(cliente_id) |Busca un cliente por su ID.
+#buscar_cliente(nombre)    |Busca un cliente por su nombre
 editar_cliente()	       |Permite modificar los datos de un cliente.
 eliminar_cliente()	       |Elimina un cliente de la base de datos.
+
 """
+
+#realizar menu

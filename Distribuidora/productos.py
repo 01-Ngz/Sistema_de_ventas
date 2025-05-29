@@ -171,3 +171,6 @@ eliminar_producto()	            |Elimina un producto de la base de datos.
 buscar_por_nombre()	            |Busca productos escribiendo parte del nombre.
 mostrar_stock_bajo()	        |Muestra productos con poco stock (stock < mínimo definido).
 """
+
+
+#realizar menu

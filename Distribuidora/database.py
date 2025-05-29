@@ -78,3 +78,6 @@ def crear_base_datos():
     conn.commit()
     conn.close()
     print("Base de datos creada correctamente.")
+
+
+# realizar menu

@@ -228,3 +228,6 @@ Exportar factura a PDF o CSV	Para impresión, envío o respaldo externo
 Reportes por fechas o cliente	Ventas filtradas por período o por comprador
 Top productos vendidos	Saber cuáles gaseosas se venden más
 Integrar con ingresos (contabilidad)	Cada venta registra automáticamente ingreso en módulo contable"""
+
+
+#realizar menu

@@ -112,34 +112,118 @@ def ver_historial(tabla):
 
 
 
-# -------------------------------------------------------------------------------------------------------------------------------------------
-"""✅ Requisitos previos para que funcione
-Requisito	                                            Descripción
-Base de datos inicializada (gaseosas_distribucion.db)	El archivo de base de datos debe existir (lo creamos desde database.py)
-Directorio db/	                                        Asegúrate de tener una carpeta db/ para guardar la base de datos
-Crear tablas con crear_tablas_finanzas()	            Llama esta función al inicio para asegurarte que las tablas existen
+# Ver todos los gastos registrados
+def ver_gastos():
+    conn = conectar()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT id, monto, descripcion, fecha, origen
+        FROM finanzas
+        WHERE tipo = 'gasto'
+        ORDER BY fecha DESC
+    ''')
+
+    gastos = cursor.fetchall()
+    conn.close()
+
+    print("== Historial de gastos ==")
+    for gasto in gastos:
+        print(f"ID: {gasto[0]} | Monto: ${gasto[1]:.2f} | Descripción: {gasto[2]} | Fecha: {gasto[3]} | Origen: {gasto[4]}")
+
+# Reporte resumen financiero: total ingresos, total gastos, y ganancia neta
+def reporte_resumen_financiero():
+    conn = conectar()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT SUM(monto) FROM finanzas WHERE tipo = "ingreso"')
+    total_ingresos = cursor.fetchone()[0] or 0
+
+    cursor.execute('SELECT SUM(monto) FROM finanzas WHERE tipo = "gasto"')
+    total_gastos = cursor.fetchone()[0] or 0
+
+    ganancia_neta = total_ingresos - total_gastos
+
+    print("\n=== Resumen Financiero ===")
+    print(f"Total Ingresos: ${total_ingresos:.2f}")
+    print(f"Total Gastos:   ${total_gastos:.2f}")
+    print(f"Ganancia Neta:  ${ganancia_neta:.2f}\n")
+
+    conn.close()
+
+# Reporte de gastos filtrado por fecha (rango)
+def reporte_gastos_por_fecha(fecha_inicio, fecha_fin):
+    """
+    Muestra gastos registrados entre fecha_inicio y fecha_fin.
+    Formato fechas: 'YYYY-MM-DD'
+    """
+    conn = conectar()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT id, monto, descripcion, fecha, origen
+        FROM finanzas
+        WHERE tipo = 'gasto' AND date(fecha) BETWEEN ? AND ?
+        ORDER BY fecha DESC
+    ''', (fecha_inicio, fecha_fin))
+
+    gastos = cursor.fetchall()
+    conn.close()
+
+    print(f"\n== Gastos desde {fecha_inicio} hasta {fecha_fin} ==")
+    for gasto in gastos:
+        print(f"ID: {gasto[0]} | Monto: ${gasto[1]:.2f} | Descripción: {gasto[2]} | Fecha: {gasto[3]} | Origen: {gasto[4]}")
+
+
+
+
+
+
+
+
+
+
 
 """
+-- Gestión de ingresos, gastos y reportes financieros
 
-# ----------------------------------------------------------------------------------------------
+Funciones principales para:
+- Registrar ingresos y gastos
+- Consultar historial
+- Generar reportes financieros básicos
 
-"""Tabla de funcionalidades 
-Función	                        ¿Qué hace?	                                                     Relación con otros módulos
-crear_tablas_finanzas()	    Crea las tablas ingresos y gastos si no existen	Independiente,            se llama una vez
-registrar_ingreso()	        Registra un ingreso con descripción y origen	                          Puede ser usado por ventas.py
-registrar_gasto()	        Registra un gasto con su categoría y descripción	                      Puede integrarse con inventario o compras
-ver_resumen_financiero()	Muestra el total de ingresos, gastos y el balance neto actual	          Ideal para la CLI
-ver_historial(tabla)	    Muestra todos los registros de ingresos o gastos	                      Permite control administrativo"""
+---
 
-# ----------------------------------------------------------------------------------------------
+Requisitos previos para que funcione:
+- La base de datos SQLite debe estar creada y accesible en 'db/gaseosas_distribucion.db'
+- La carpeta 'db/' debe existir y tener permisos de escritura
+- Python instalado con el módulo sqlite3 (incluido en la mayoría de distribuciones)
+- El archivo debe ejecutarse en un entorno donde se permita la lectura y escritura de archivos
 
-"""Sugerencias de futuras mejoras para finanzas
-Mejora	                                        ¿Por qué implementarla?
-Exportar reportes a Excel o CSV	                Para análisis contable externo o compartir con contador
-Visualización gráfica del balance	            Facilita entender el flujo de dinero con gráficos circulares o de barras
-Registro de pagos pendientes o deudas	        Control de cuentas por pagar/proveedores
-Agregar filtros por fechas o categorías	        Útil para auditoría o revisar gastos específicos
-Enlace automático con ventas e inventario	    Que cada venta cree un ingreso automáticamente
-Control de caja chica	                        Registrar egresos menores del día a día
-Cierre de mes	                                Calcular y registrar el balance mensual automáticamente
+---
+
+Sugerencias de futuras mejoras:
+- Validar entradas para evitar datos negativos o mal formateados
+- Unificar las tablas ingresos y gastos en una sola tabla con campo "tipo" para simplificar consultas
+- Añadir autenticación de usuarios para controlar quién registra ingresos/gastos
+- Incorporar edición y eliminación de registros para corrección de errores
+- Mejorar reportes con filtros por categorías, usuarios o rangos más específicos
+- Exportar reportes a formatos como CSV o PDF para análisis externo
+- Añadir gráficos y visualizaciones usando librerías como matplotlib o seaborn
+- Automatizar registros vinculados a ventas y compras para evitar registros manuales
+- Crear un CLI o interfaz web para manejar finanzas de forma amigable
+
+---
+
+| Función                    | ¿Qué hace?                                                                |
+|---------------------------|---------------------------------------------------------------------------|
+| creasto()          | Inserta un nuevo gasto en la base de datos                                |
+| ver_resumenar_tablas_finanzas()    | Crea las tablas 'ingresos' y 'gastos' si no existen                       |
+| registrar_ingreso()        | Inserta un nuevo ingreso en la base de datos                              |
+| registrar_g_financiero()   | Muestra totales de ingresos, gastos y balance neto                        |
+| ver_historial(tabla)       | Lista todos los registros de la tabla especificada ('ingresos' o 'gastos')|
+| ver_gastos()               | (Función parcialmente repetida) Muestra todos los gastos                  |
+| reporte_resumen_financiero() | (Función parcialmente repetida) Muestra resumen consolidado             |
+| reporte_gastos_por_fecha() | Muestra gastos dentro de un rango de fechas                               |
+
 """
