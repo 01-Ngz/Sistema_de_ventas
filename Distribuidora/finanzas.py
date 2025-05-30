@@ -10,7 +10,7 @@ def conectar():
     # Asegura que la carpeta 'db/' exista
     os.makedirs("db", exist_ok=True)
 
-    db_path = "db/gaseosas_distribucion.db"
+    db_path = "gaseosas_distribucion.db"
 
     # Si el archivo existe y está dañado, lo borramos
     if os.path.exists(db_path):
@@ -27,27 +27,18 @@ def conectar():
     return sqlite3.connect(db_path)
 
 # Crear tablas de finanzas si no existen
-def crear_tablas_finanzas():
-    conn = conectar()
+def crear_tabla_finanzas():
+    conn = sqlite3.connect("distribuidora.db")
     cursor = conn.cursor()
 
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS ingresos (
+        CREATE TABLE IF NOT EXISTS finanzas (
             registro_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            monto REAL,
+            tipo TEXT CHECK(tipo IN ('ingreso', 'gasto')) NOT NULL,
+            monto REAL NOT NULL,
             descripcion TEXT,
-            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            origen TEXT
-        )
-    ''')
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS gastos (
-            registro_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            monto REAL,
-            descripcion TEXT,
-            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            categoria TEXT
+            origen TEXT,
+            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
 
@@ -57,17 +48,27 @@ def crear_tablas_finanzas():
 
 # Registrar un ingreso manual o automático (por venta, por ejemplo)
 def registrar_ingreso(monto, descripcion, origen="manual"):
-    conn = conectar()
-    cursor = conn.cursor()
+    conn = None
+    try:
+        monto = float(monto)
+        if monto <= 0:
+            raise ValueError("El monto debe ser positivo.")
 
-    cursor.execute('''
-        INSERT INTO ingresos (monto, descripcion, origen)
-        VALUES (?, ?, ?)
-    ''', (monto, descripcion, origen))
+        conn = sqlite3.connect("distribuidora.db")
+        cursor = conn.cursor()
 
-    conn.commit()
-    conn.close()
-    print("✅ Ingreso registrado correctamente.")
+        cursor.execute('''
+            INSERT INTO finanzas (tipo, monto, descripcion, origen)
+            VALUES ('ingreso', ?, ?, ?)
+        ''', (monto, descripcion, origen))
+
+        conn.commit()
+        print("Ingreso registrado correctamente.")
+    except Exception as e:
+        print(f"Error al registrar ingreso: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 
 # Registrar un gasto
@@ -76,8 +77,8 @@ def registrar_gasto(monto, descripcion, categoria="general"):
     cursor = conn.cursor()
 
     cursor.execute('''
-        INSERT INTO gastos (monto, descripcion, categoria)
-        VALUES (?, ?, ?)
+        INSERT INTO finanzas (monto, descripcion, categoria, tipo)
+        VALUES (?, ?, ?, 'gasto')
     ''', (monto, descripcion, categoria))
 
     conn.commit()
@@ -86,44 +87,31 @@ def registrar_gasto(monto, descripcion, categoria="general"):
 
 
 # Ver resumen financiero
-def ver_resumen_financiero():
-    conn = conectar()
-    cursor = conn.cursor()
 
-    cursor.execute('SELECT SUM(monto) FROM ingresos')
-    total_ingresos = cursor.fetchone()[0] or 0
-
-    cursor.execute('SELECT SUM(monto) FROM gastos')
-    total_gastos = cursor.fetchone()[0] or 0
-
-    balance = total_ingresos - total_gastos
-
-    print("📊 Resumen Financiero")
-    print(f"Ingresos Totales: ${total_ingresos:.2f}")
-    print(f"Gastos Totales:   ${total_gastos:.2f}")
-    print(f"Balance Neto:     ${balance:.2f}")
 
     conn.close()
 
 
 # Ver historial de ingresos o gastos
-def ver_historial(tabla):
-    conn = conectar()
+def ver_historial(tipo="ingreso"):
+    conn = sqlite3.connect("distribuidora.db")
     cursor = conn.cursor()
 
-    if tabla == 'ingresos':
-        cursor.execute('SELECT * FROM ingresos ORDER BY fecha DESC')
-    elif tabla == 'gastos':
-        cursor.execute('SELECT * FROM gastos ORDER BY fecha DESC')
+    cursor.execute('''
+        SELECT registro_id, monto, descripcion, fecha, origen 
+        FROM finanzas 
+        WHERE tipo = ? 
+        ORDER BY fecha DESC
+    ''', (tipo,))
+
+    filas = cursor.fetchall()
+
+    if not filas:
+        print(f"No hay registros de {tipo}s.")
     else:
-        print("❌ Tabla no válida. Usa 'ingresos' o 'gastos'.")
-        return
-
-    registros = cursor.fetchall()
-
-    print(f"📄 Historial de {tabla}:")
-    for r in registros:
-        print(f"#{r[0]} | ${r[1]} | {r[2]} | {r[3]} | {r[4] if len(r) > 4 else ''}")
+        print(f"\n--- HISTORIAL DE {tipo.upper()}S ---")
+        for fila in filas:
+            print(f"ID: {fila[0]}, Monto: ${fila[1]:.2f}, Desc: {fila[2]}, Fecha: {fila[3]}, Origen: {fila[4]}")
 
     conn.close()
 
@@ -148,7 +136,7 @@ def ver_gastos():
         print(f"ID: {gasto[0]} | Monto: ${gasto[1]:.2f} | Descripción: {gasto[2]} | Fecha: {gasto[3]} | Origen: {gasto[4]}")
 
 # Reporte resumen financiero: total ingresos, total gastos, y ganancia neta
-def reporte_resumen_financiero():
+def ver_resumen_financiero():
     conn = conectar()
     cursor = conn.cursor()
 
@@ -188,7 +176,9 @@ def reporte_gastos_por_fecha(fecha_inicio, fecha_fin):
 
     print(f"\n== Gastos desde {fecha_inicio} hasta {fecha_fin} ==")
     for gasto in gastos:
-        print(f"ID: {gasto[0]} | Monto: ${gasto[1]:.2f} | Descripción: {gasto[2]} | Fecha: {gasto[3]} | Origen: {gasto[4]}"
+        print(f"ID: {gasto[0]} | Monto: ${gasto[1]:.2f} | Descripción: {gasto[2]} | Fecha: {gasto[3]} | Origen: {gasto[4]}")
+
+
 
 """
 -- Gestión de ingresos, gastos y reportes financieros
@@ -232,4 +222,6 @@ Sugerencias de futuras mejoras:
 | reporte_resumen_financiero()       | (Función parcialmente repetida) Muestra resumen consolidado               |
 | reporte_gastos_por_fecha()         | Muestra gastos dentro de un rango de fechas                               |
 
-""")
+"""
+
+#Daño en resumen financiero: sale otra base de datos

@@ -6,7 +6,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
 def conectar():
-    return sqlite3.connect('db/gaseosas_distribucion.db')
+    return sqlite3.connect('gaseosas_distribucion.db')
 
 # ------------------- REGISTRAR VENTA -------------------
 def registrar_venta():

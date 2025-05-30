@@ -5,7 +5,7 @@ import sqlite3
 
 # Conexión a la base de datos
 def conectar():
-    return sqlite3.connect('db/gaseosas_distribucion.db')
+    return sqlite3.connect('gaseosas_distribucion.db')
 
 # Agregar un nuevo cliente
 def agregar_cliente():

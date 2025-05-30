@@ -10,7 +10,7 @@ python app.py generar_reporte
 python app.py ver_stock
 python app.py sugerencias_reabastecimiento"""
 from finanzas import (
-    crear_tablas_finanzas,
+    crear_tabla_finanzas,
     registrar_ingreso,
     registrar_gasto,
     ver_resumen_financiero,
@@ -217,7 +217,7 @@ def mostrar_menu_general():
 def main():
     # Crear tablas si no existen
     try:
-        crear_tablas_finanzas()
+        crear_tabla_finanzas()
     except Exception as e:
         print(f"⚠️ Advertencia: No se pudieron crear las tablas financieras. {e}")
 

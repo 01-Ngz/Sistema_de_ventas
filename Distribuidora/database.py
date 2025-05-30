@@ -7,7 +7,7 @@ import os
 def crear_base_datos():
     os.makedirs("db", exist_ok=True)  # Crear carpeta 'db' si no existe
 
-    db_path = "db/gaseosas_distribucion.db"
+    db_path = "gaseosas_distribucion.db"
 
     # Si el archivo existe y está corrupto, eliminar para crear nuevo
     if os.path.exists(db_path):

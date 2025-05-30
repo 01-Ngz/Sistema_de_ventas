@@ -3,7 +3,7 @@
 # productos.py
 
 
-DB_PATH = 'db/gaseosas_distribucion.db'
+DB_PATH = 'gaseosas_distribucion.db'
 
 def conectar():
     return sqlite3.connect(DB_PATH)
